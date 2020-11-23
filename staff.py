@@ -5,6 +5,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+def cvt_gray(img):
+    return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+
+def otsu_filter(img):
+    _, img = cv2.threshold(img, 0, 1, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return img
+
+
 def extract_runs(frame, col):
     # the values in the column, col, from the current frame
     # e.g., [0,1,1,1,1,1,1,0,0,0,0,0,0,0,etc]
@@ -88,15 +97,6 @@ def potential_staff_line_positions(inverted):
     return staff_lines
 
 
-# 0     1
-# 0     1
-# 1     1
-# 1     1
-# 1     1
-# 1     1
-# 0     1
-# 0     1
-
 def remove_staff_lines(inverted, staff_lines, staffline_height):
     removed = inverted.copy()
 
@@ -110,16 +110,79 @@ def remove_staff_lines(inverted, staff_lines, staffline_height):
         eroded = cv2.erode(removed[start_row:end_row, :], kernel, iterations=1)
         removed[start_row:end_row, :] = eroded
 
+    # eroded = cv2.erode(removed, kernel, iterations=1)
     return removed
 
 
-def cvt_gray(img):
-    return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+def remove_vertical_lines(img, staffline_height):
+    removed = img.copy()
 
+    kernel = cv2.getStructuringElement(
+        cv2.MORPH_RECT, (staffline_height * 3, 1))
 
-def otsu_filter(img):
-    _, img = cv2.threshold(img, 0, 1, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    img = cv2.erode(img, kernel)
+
+    # kernel = cv2.getStructuringElement(
+    #     cv2.MORPH_RECT, (31 // 2, 4)
+    # )
+
+    # img = cv2.dilate(img, kernel)
+
     return img
+
+
+def detect_circles(binary, img, staffspace_height):
+    # print(type(binary))
+    # print(type(img))
+
+    contours, hierarchy = cv2.findContours(
+        binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    note_heads = []
+
+    for contour in contours:
+        perimeter = cv2.arcLength(contour, True)
+        area = cv2.contourArea(contour)
+
+        # print(perimeter)
+
+        if perimeter == 0:
+            continue
+
+        circularity = 4 * np.pi*(area / (perimeter * perimeter))
+
+        # print(circularity)
+        if circularity > 0.5:
+            note_heads.append(contour)
+        else:
+            epsilon = 0.01 * perimeter
+            approx = cv2.approxPolyDP(contour, epsilon, True)
+
+            new_perm = cv2.arcLength(approx, True)
+            new_area = cv2.contourArea(approx)
+
+            new_circ = 4 * np.pi*(new_area / (new_perm * new_perm))
+
+            print(circularity, new_circ)
+
+            if new_circ > 0.5:
+                note_heads.append(approx)
+
+    # print(note_heads)
+
+    return cv2.drawContours(img, note_heads, -1, (0, 0, 255), 3)
+
+    # return cv2.drawContours(img, contours, -1, (0, 0, 255), 3)
+
+    # circles = cv2.HoughCircles(
+    #     gray, cv2.HOUGH_GRADIENT, 1, staffspace_height // 2, param1=50, param2=30, minRadius=staffspace_height // 3, maxRadius=staffspace_height * 2)
+
+    # circles = np.round(circles[0, :]).astype("int")
+
+    # for (x, y, r) in circles:
+    #     cv2.circle(img, (x, y), r, (0, 255, 0), 4)
+    #     cv2.rectangle(img, (x - 5, y - 5),
+    #                   (x + 5, y + 5), (0, 128, 255), -1)
 
 
 def main():
@@ -147,21 +210,11 @@ def main():
     no_staff_lines = remove_staff_lines(
         inverted_music, staff_lines, staffline_height)
 
-    # print(staff_lines)
-    # print(f"{avg=}")
+    removed_vertical = remove_vertical_lines(no_staff_lines, staffline_height)
+    # contoured = detect_circles(removed_vertical, img,  staffspace_height)
 
-    # print(row_sums)
-
-    # plt.show()
-    # row = 1566
-    # row_sum = int(np.sum(inverted_music[row, :]) // 255)
-    # print(f"{row_sums=}")
     cv2.namedWindow("Music", cv2.WINDOW_NORMAL)
-    cv2.imshow("Music", no_staff_lines)
     cv2.waitKey()
-
-    # plt.bar(x=range(len(row_sums)), height=row_sums)
-    # plt.show()
 
 
 if __name__ == "__main__":
