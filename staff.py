@@ -193,7 +193,8 @@ def main():
     # print(f"{black_runs=}")
     # print(f"{white_runs=}")
 
-    img = cv2.imread("ode-to-joy.png")
+    img = cv2.imread("ode-to-joy-cropped.png")
+    cv2.imwrite("original.png", img)
     gray = cvt_gray(img)
     binary_music = otsu_filter(gray)
     height, width = binary_music.shape
@@ -210,10 +211,33 @@ def main():
     no_staff_lines = remove_staff_lines(
         inverted_music, staff_lines, staffline_height)
 
+    linesP = cv2.HoughLinesP(no_staff_lines, 0.5, np.pi /
+                             180, 20, minLineLength=3 * staffspace_height, maxLineGap=staffspace_height)
+    lines_img = img.copy()
+
+    if linesP is not None:
+        for i in range(0, len(linesP)):
+            x1, y1, x2, y2 = linesP[i][0]
+
+            if abs(x1 - x2) < 5:
+                cv2.line(lines_img, (x1, y1),
+                         (x2, y2), (0, 255, 0), 1, cv2.LINE_AA)
+
     removed_vertical = remove_vertical_lines(no_staff_lines, staffline_height)
-    # contoured = detect_circles(removed_vertical, img,  staffspace_height)
+    contoured = detect_circles(removed_vertical, img,  staffspace_height)
 
     cv2.namedWindow("Music", cv2.WINDOW_NORMAL)
+    # cv2.imshow("Music", contoured)
+    # cv2.imshow("Music", removed_vertical)
+    # cv2.imshow("Music", cv2.bitwise_not(no_staff_lines))
+    cv2.imshow("Music", lines_img)
+
+    cv2.imwrite("removed_vertical_black.png", removed_vertical)
+    cv2.imwrite("staff_line_removal.png", cv2.bitwise_not(no_staff_lines))
+    cv2.imwrite("removed_vertical.png", cv2.bitwise_not(removed_vertical))
+    cv2.imwrite("contoured.png", contoured)
+    cv2.imwrite("contoured_with_lines.png",
+                cv2.bitwise_or(contoured, lines_img))
     cv2.waitKey()
 
 
