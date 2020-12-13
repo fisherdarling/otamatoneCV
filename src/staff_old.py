@@ -122,12 +122,6 @@ def remove_vertical_lines(img, staffline_height):
 
     img = cv2.erode(img, kernel)
 
-    # kernel = cv2.getStructuringElement(
-    #     cv2.MORPH_RECT, (31 // 2, 4)
-    # )
-
-    # img = cv2.dilate(img, kernel)
-
     return img
 
 
@@ -168,21 +162,7 @@ def detect_circles(binary, img, staffspace_height):
             if new_circ > 0.5:
                 note_heads.append(approx)
 
-    # print(note_heads)
-
     return cv2.drawContours(img, note_heads, -1, (0, 0, 255), 3)
-
-    # return cv2.drawContours(img, contours, -1, (0, 0, 255), 3)
-
-    # circles = cv2.HoughCircles(
-    #     gray, cv2.HOUGH_GRADIENT, 1, staffspace_height // 2, param1=50, param2=30, minRadius=staffspace_height // 3, maxRadius=staffspace_height * 2)
-
-    # circles = np.round(circles[0, :]).astype("int")
-
-    # for (x, y, r) in circles:
-    #     cv2.circle(img, (x, y), r, (0, 255, 0), 4)
-    #     cv2.rectangle(img, (x - 5, y - 5),
-    #                   (x + 5, y + 5), (0, 128, 255), -1)
 
 
 def main():
@@ -208,6 +188,9 @@ def main():
     # inverted_music =
     inverted_music = cv2.bitwise_not(binary_music * 255)
     staff_lines = potential_staff_line_positions(inverted_music)
+
+    print(staff_lines)
+
     no_staff_lines = remove_staff_lines(
         inverted_music, staff_lines, staffline_height)
 
@@ -228,16 +211,17 @@ def main():
 
     cv2.namedWindow("Music", cv2.WINDOW_NORMAL)
     # cv2.imshow("Music", contoured)
-    # cv2.imshow("Music", removed_vertical)
+    cv2.imshow("Music", removed_vertical)
     # cv2.imshow("Music", cv2.bitwise_not(no_staff_lines))
-    cv2.imshow("Music", lines_img)
+    # cv2.imshow("Music", lines_img)
 
-    cv2.imwrite("removed_vertical_black.png", removed_vertical)
-    cv2.imwrite("staff_line_removal.png", cv2.bitwise_not(no_staff_lines))
-    cv2.imwrite("removed_vertical.png", cv2.bitwise_not(removed_vertical))
-    cv2.imwrite("contoured.png", contoured)
-    cv2.imwrite("contoured_with_lines.png",
+    cv2.imwrite("../removed_vertical_black.png", removed_vertical)
+    cv2.imwrite("../staff_line_removal.png", cv2.bitwise_not(no_staff_lines))
+    cv2.imwrite("../removed_vertical.png", cv2.bitwise_not(removed_vertical))
+    cv2.imwrite("../contoured.png", contoured)
+    cv2.imwrite("../contoured_with_lines.png",
                 cv2.bitwise_or(contoured, lines_img))
+
     cv2.waitKey()
 
 
