@@ -85,7 +85,7 @@ class OMR:
 
         # print(self.probable_notes)
 
-        self.display_image(draw_img)
+        # self.display_image(draw_img)
         # print("Here")
         cv2.imwrite("probable_notes.png", draw_img)
 
@@ -99,7 +99,7 @@ class OMR:
         for note in self.probable_notes:
             note.draw(draw_img)
 
-        # self.display_image(draw_img)
+        self.display_image(draw_img)
         cv2.imwrite("detected_music.png", draw_img)
         # cv2.imshow("Music", draw_img)
 

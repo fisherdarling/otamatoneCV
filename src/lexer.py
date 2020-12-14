@@ -6,7 +6,7 @@ from head import HeadType
 from stem import StemType, Stem
 
 
-TONES = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
+TONES = ['B', 'C', 'D', 'E', 'F', 'G', 'A']
 NUM_TONES = 7
 
 
@@ -79,10 +79,13 @@ class Lexer:
             staff = self.nearest_staff(note)
 
             # Calculate the note head center:
-            c_x, c_y = x + (w / 2), y + (h / 2)
+            c_y = y + (h / 2)
 
-            check_y = (c_y - staff.center()) / (self.staffspace_height / 2)
-            idx = round(check_y)
+            check_y = (c_y - staff.center()) / \
+                ((self.staffspace_height + self.staffline_height) / 2)
+            idx = -1 * round(check_y)
+
+            print(f"[{staff.center()}]", c_y, check_y, "->", idx)
 
             if abs(idx) > 16:
                 to_delete.append(i)
