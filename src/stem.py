@@ -3,7 +3,7 @@ from enum import Enum
 import numpy as np
 import math
 from functools import total_ordering
-
+import cv2
 
 from scipy.spatial.distance import directed_hausdorff
 
@@ -43,6 +43,10 @@ class Stem(Loc):
         self.line = line
         self.type = type
 
+        self.centroid = line_center(self.a[0], self.a[1], self.b[0], self.b[1])
+        self.aabb = [min(self.a[0], self.b[0]), min(self.a[1], self.b[1]), max(self.a[0], self.b[0]) - min(
+            self.a[0], self.b[0]), max(self.a[1], self.b[1]) - min(self.a[1], self.b[1])]
+
     def __eq__(self, other):
         self.a == other.a and self.b == other.b
 
@@ -59,9 +63,9 @@ class Stem(Loc):
         return hash((hash(self.a), hash(self.b)))
 
     def combine_similar_lines(lines, staffspace_height):
-        print(f"Combine Similar {len(lines)}")
+        # print(f"Combine Similar {len(lines)}")
 
-        lines.sort()
+        # lines.sort()
         lines.reverse()
 
         combined = []
@@ -139,6 +143,9 @@ class Stem(Loc):
     def y_max(self):
         return max(self.a[1], self.b[1])
 
+    def x_center(self):
+        return (self.a[0] + self.b[0]) / 2
+
     def bb(self):
         x_min = min(self.a[0], self.b[0])
         x_max = max(self.a[0], self.b[0])
@@ -146,6 +153,25 @@ class Stem(Loc):
         y_max = max(self.a[1], self.b[1])
 
         return x_min, x_max, y_min, y_max
+
+    def draw(self, img):
+        bb = self.bounding_box()
+        cv2.rectangle(img, (bb[0], bb[1]), (bb[0] + bb[2],
+                                            bb[1] + bb[3]), (0, 255, 0), thickness=2)
+
+    def intersects_rect(self, x, y, w, h):
+        s1 = [(x, y), (x + w, y)]
+        s2 = [(x, y), (x, y + h)]
+        s3 = [(x + w, y), (x + w, y + h)]
+        s4 = [(x, y + h), (x + w, y + h)]
+
+        a = self.a
+        b = self.b
+
+        return intersects(a, b, s1[0], s1[1]) \
+            or intersects(a, b, s2[0], s2[1]) \
+            or intersects(a, b, s3[0], s3[1]) \
+            or intersects(a, b, s4[0], s4[1])
 
     def __repr__(self):
         return f"[{self.a} -> {self.b}]"
@@ -176,11 +202,14 @@ def line_center(x1, y1, x2, y2):
 # def combine_lines(line1, line2):
 
 
-# def similarity(s1, s2):
-#     u = np.array([s1.a, s1.b])
-#     v = np.array([s2.a, s2.b])
+# From: https://bryceboe.com/2006/10/23/line-segment-intersection-algorithm/
+def ccw(A, B, C):
+    return (C[1]-A[1]) * (B[0]-A[0]) > (B[1]-A[1]) * (C[0]-A[0])
 
-#     return directed_hausdorff(u, v)[0]
+
+# Return true if line segments AB and CD intersect
+def intersects(A, B, C, D):
+    return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
 
 
 if __name__ == "__main__":
