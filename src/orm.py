@@ -33,9 +33,29 @@ class ORM:
         cv2.imshow("Music", self.no_staff_lines)
         cv2.waitKey()
 
+        self.canny = cv2.Canny(self.no_staff_lines, 0, 1)
+
+        # kernel = cv2.getStructuringElement(
+        #     cv2.MORPH_RECT, (self.staffline_height * 2, self.staffline_height))
+        # self.canny = cv2.dilate(self.canny, kernel)
+
+        # self.canny = cv2.Laplacian(
+        #     self.no_staff_lines, cv2.CV_64F, ksize=29)
+
+        # cv2.imshow("Music", self.canny)
+        # cv2.waitKey()
+
+        # return
+
         self.find_hough_lines(
             20, 3 * self.staffspace_height, self.staffspace_height)
         self.find_probable_stems()
+
+        draw_img = cv2.cvtColor(self.inverted_music, cv2.COLOR_GRAY2BGR)
+        self.draw_probable_stems(draw_img)
+
+        cv2.imshow("Music", draw_img)
+        cv2.waitKey()
 
         cv2.createTrackbar('Votes', 'Music', 0,
                            50, nothing)
@@ -132,7 +152,7 @@ class ORM:
         self.no_staff_lines = removed
 
     def find_hough_lines(self, votes, min_length, line_gap):
-        linesP = cv2.HoughLinesP(self.no_staff_lines, 0.5, np.pi / 180, votes,
+        linesP = cv2.HoughLinesP(self.canny, rho=0.5, theta=np.pi / 180, threshold=votes,
                                  minLineLength=min_length, maxLineGap=line_gap)
 
         self.hough_lines = linesP
