@@ -35,7 +35,7 @@ class StaffLine(Loc):
 
 class Staff:
     def __init__(self, y=None, lines=[]):
-        self.y = None
+        self.y = y
         self.lines = []
 
     def lines(self):
