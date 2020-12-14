@@ -85,10 +85,11 @@ class OMR:
         # print(self.probable_notes)
 
         # self.display_image(draw_img)
-        print("Here")
-        cv2.imwrite("detected_notes.png", draw_img)
+        # print("Here")
+        cv2.imwrite("probable_notes.png", draw_img)
 
-        lexer = Lexer(self.inverted_music, self.staffs, self.probable_notes)
+        lexer = Lexer(self.inverted_music, self.staffs,
+                      self.probable_notes, self.staffspace_height)
         lexer.generate_statistics()
         lexer.classify_heads()
 
@@ -97,6 +98,7 @@ class OMR:
             note.draw(draw_img)
 
         self.display_image(draw_img)
+        cv2.imwrite("detected_music.png", draw_img)
         # cv2.imshow("Music", draw_img)
 
         return None
@@ -302,7 +304,7 @@ class OMR:
         idxs = reversed(to_remove)
 
         for idx in idxs:
-            self.probable_heads.remove(idx)
+            self.probable_heads.pop(idx.pop())
 
     def determine_notes(self):
         assert len(self.note_head_cnts)
@@ -360,7 +362,7 @@ class OMR:
                 remaining_stems.remove(chosen_stem)
 
             new_note = Note(head=chosen_head, stem=chosen_stem)
-            new_note.centroid = centroids[i]
+            new_note.c = centroids[i]
             new_note.aabb = [x, y, w, h]
             new_note.area = a
 
