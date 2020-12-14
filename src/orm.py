@@ -25,13 +25,14 @@ class ORM:
         self.find_staff_lines()
         print(self.staffs)
 
-        cv2.imshow("Music", self.inverted_music)
-        cv2.waitKey()
+        # cv2.imshow("Music", self.inverted_music)
+        # cv2.waitKey()
 
         self.remove_staff_lines()
 
-        cv2.imshow("Music", self.no_staff_lines)
-        cv2.waitKey()
+        self.display_image(self.no_staff_lines)
+        # cv2.imshow("Music", self.no_staff_lines)
+        # cv2.waitKey()
 
         self.canny = cv2.Canny(self.no_staff_lines, 0, 1)
 
@@ -55,70 +56,19 @@ class ORM:
 
         # print(self.probable_stems)
 
+        # draw_img = cv2.cvtColor(self.inverted_music, cv2.COLOR_GRAY2BGR)
+        # self.draw_lines(draw_img, self.probable_stems)
+        # self.display_image(draw_img)
+
+        self.combine_probable_stems()
+
         draw_img = cv2.cvtColor(self.inverted_music, cv2.COLOR_GRAY2BGR)
         self.draw_lines(draw_img, self.probable_stems)
         self.display_image(draw_img)
 
-        self.combine_probable_stems()
+        cv2.imwrite("detected_stems.png", draw_img)
 
-        # start_len = len(self.probable_stems)
-
-        # # while True:
-        # #     self.combine_probable_stems()
-
-        # #     draw_img = cv2.cvtColor(self.inverted_music, cv2.COLOR_GRAY2BGR)
-        # #     self.draw_lines(draw_img, self.probable_stems)
-
-        # #     cv2.imshow("Music", draw_img)
-        # #     cv2.waitKey(400)
-        # #     # self.display_image(draw_img)
-
-        # #     if len(self.probable_stems) == start_len:
-        # #         break
-        # #     else:
-        # #         start_len = len(self.probable_stems)
-
-        self.draw_lines(draw_img, self.probable_stems)
-        self.display_image(draw_img)
-
-        # delta = self.avg_staff_diff() // 2
-        # for staff in self.staffs:
-        #     y_top = staff.center() + delta
-        #     y_bot = staff.center() - delta
-
-        #     lines = list(filter(lambda stem: stem.y_max() <
-        #                         y_top and stem.y_min() > y_bot, self.probable_stems))
-
-        #     print(staff)
-        #     print(lines)
-        #     print()
-
-        # cv2.createTrackbar('Votes', 'Music', 0,
-        #                    50, nothing)
-        # cv2.createTrackbar('Min Length', 'Music', 0,
-        #                    5 * self.staffspace_height, nothing)
-        # cv2.createTrackbar('Line Gap', 'Music', 0,
-        #                    self.staffspace_height * 2, nothing)
-
-        # while(1):
-        #     if cv2.waitKey(1) & 0xFF == 27:
-        #         break
-
-        #     votes = cv2.getTrackbarPos('Votes', 'Music')
-        #     min_length = cv2.getTrackbarPos('Min Length', 'Music')
-        #     gap = cv2.getTrackbarPos('Line Gap', 'Music')
-
-        #     self.find_hough_lines(int(votes), int(min_length), int(gap))
-        #     self.find_probable_stems()
-
-        #     draw_img = cv2.cvtColor(self.inverted_music, cv2.COLOR_GRAY2BGR)
-        #     self.draw_probable_stems(draw_img)
-
-        #     cv2.imshow("Music", draw_img)
-        # cv2.waitKey()
-
-        # draw_img = self.inverted_music.copy() * 200.0
-        # print(np.max(draw_img))
+        self.detect_note_heads()
 
         return None
 
@@ -219,7 +169,6 @@ class ORM:
         delta = self.avg_staff_diff() // 2
 
         start_len = len(self.probable_stems)
-
         while True:
             self.probable_stems.sort()
             new_stems = []
@@ -235,7 +184,6 @@ class ORM:
                     lines, self.staffspace_height))
 
             self.probable_stems = new_stems
-
             if len(self.probable_stems) == start_len:
                 break
             else:
@@ -262,6 +210,84 @@ class ORM:
             total += (self.staffs[i + 1].center() - self.staffs[i].center())
 
         return total / (len(self.staffs) - 1)
+
+    def detect_note_heads(self):
+        # return width < sh * 2 and width > sh / 5 \
+        #     and height < sh * 1.2 and height > sh / 2
+
+        # sh = self.staffspace_height + self.staffline_height * 2
+
+        # print("Looking for these parameters:")
+        # print(f"{self.staffspace_height / 5} < width < {self.staffspace_height * 2}")
+        # print(f"{self.staffspace_height / 2} < height < {self.staffspace_height * 1.2}")
+
+        self.remove_stems()
+        self.display_image(self.no_stems)
+        cv2.imwrite("no_stems.png", self.no_stems)
+
+        img = self.no_stems.copy()
+        contours, _ = cv2.findContours(
+            img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        draw_img = cv2.cvtColor(self.inverted_music, cv2.COLOR_GRAY2BGR)
+        # cnt = contours[4]
+        # print(cnt)
+
+        note_heads_cnts = []
+
+        for cnt in contours:
+            x, y, w, h = cv2.boundingRect(cnt)
+
+            cv2.rectangle(draw_img, (x, y), (x + w, y + h),
+                          (255, 255, 0), thickness=2)
+
+            cv2.putText(draw_img, f"w: {w}, h: {h}", (x, y - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), thickness=1)
+
+            if self.fits_note_head(w, h):
+                note_heads_cnts.append(cnt)
+
+        cv2.drawContours(draw_img, note_heads_cnts, -1, (0, 0, 255), 2)
+        self.display_image(draw_img)
+
+        cv2.imwrite("detected_note_heads.png", draw_img)
+
+        self.note_head_cnts = note_heads_cnts
+
+    def remove_stems(self):
+        removed = self.no_staff_lines.copy()
+
+        height, width = removed.shape
+        # print(f"width: {width}, height: {height}")
+        delta = int(self.staffline_height * 1.4)
+
+        for stem in self.probable_stems:
+            # print(stem, stem.bb)
+
+            x_min, x_max, y_min, y_max = stem.bb()
+            x_min -= delta
+            x_max += delta
+            y_min -= delta
+            y_max += delta
+
+            kernel = cv2.getStructuringElement(
+                cv2.MORPH_RECT, (x_max - x_min, 2))
+
+            # print(x_min, x_max, y_min, y_max)
+
+            # print(removed[y_min:y_max, x_min:x_max])
+
+            eroded = cv2.erode(removed[y_min:y_max, x_min:x_max],
+                               kernel, iterations=2)
+            removed[y_min:y_max, x_min:x_max] = eroded
+
+        self.no_stems = removed
+
+    def fits_note_head(self, width, height):
+        sh = self.staffspace_height + self.staffline_height * 2
+
+        return width < sh * 2 and width > sh / 5 \
+            and height < sh * 1.2 and height > sh / 2
 
     def draw_lines(self, img, lines):
         for stem in lines:

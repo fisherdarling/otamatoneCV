@@ -139,6 +139,14 @@ class Stem(Loc):
     def y_max(self):
         return max(self.a[1], self.b[1])
 
+    def bb(self):
+        x_min = min(self.a[0], self.b[0])
+        x_max = max(self.a[0], self.b[0])
+        y_min = min(self.a[1], self.b[1])
+        y_max = max(self.a[1], self.b[1])
+
+        return x_min, x_max, y_min, y_max
+
     def __repr__(self):
         return f"[{self.a} -> {self.b}]"
 
