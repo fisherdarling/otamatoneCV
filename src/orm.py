@@ -57,13 +57,13 @@ class ORM:
         # print(self.probable_stems)
 
         # draw_img = cv2.cvtColor(self.inverted_music, cv2.COLOR_GRAY2BGR)
-        # self.draw_lines(draw_img, self.probable_stems)
+        # self.draw_stems(draw_img, self.probable_stems)
         # self.display_image(draw_img)
 
         self.combine_probable_stems()
 
         draw_img = cv2.cvtColor(self.inverted_music, cv2.COLOR_GRAY2BGR)
-        self.draw_lines(draw_img, self.probable_stems)
+        self.draw_stems(draw_img, self.probable_stems)
         self.display_image(draw_img)
 
         cv2.imwrite("detected_stems.png", draw_img)
@@ -229,7 +229,7 @@ class ORM:
         contours, _ = cv2.findContours(
             img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-        draw_img = cv2.cvtColor(self.inverted_music, cv2.COLOR_GRAY2BGR)
+        draw_img = cv2.cvtColor(self.no_staff_lines, cv2.COLOR_GRAY2BGR)
         # cnt = contours[4]
         # print(cnt)
 
@@ -241,13 +241,16 @@ class ORM:
             cv2.rectangle(draw_img, (x, y), (x + w, y + h),
                           (255, 255, 0), thickness=2)
 
-            cv2.putText(draw_img, f"w: {w}, h: {h}", (x, y - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), thickness=1)
+            cv2.putText(draw_img, f"w: {w}, h: {h}", (x, y + h + 15),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), thickness=1)
 
             if self.fits_note_head(w, h):
+                cv2.fillPoly(draw_img, pts=[cnt], color=(0, 0, 255))
                 note_heads_cnts.append(cnt)
 
-        cv2.drawContours(draw_img, note_heads_cnts, -1, (0, 0, 255), 2)
+        self.draw_stems(draw_img, self.probable_stems)
+
+        # cv2.drawContours(draw_img, note_heads_cnts, -1, (0, 0, 255), 2)
         self.display_image(draw_img)
 
         cv2.imwrite("detected_note_heads.png", draw_img)
@@ -289,7 +292,7 @@ class ORM:
         return width < sh * 2 and width > sh / 5 \
             and height < sh * 1.2 and height > sh / 2
 
-    def draw_lines(self, img, lines):
+    def draw_stems(self, img, lines):
         for stem in lines:
             cv2.line(img, stem.a,
                      stem.b, (0, 255, 0), 3)
