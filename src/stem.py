@@ -43,7 +43,7 @@ class Stem(Loc):
         self.line = line
         self.type = type
 
-        self.centroid = line_center(self.a[0], self.a[1], self.b[0], self.b[1])
+        self.c = line_center(self.a[0], self.a[1], self.b[0], self.b[1])
         self.aabb = [min(self.a[0], self.b[0]), min(self.a[1], self.b[1]), max(self.a[0], self.b[0]) - min(
             self.a[0], self.b[0]), max(self.a[1], self.b[1]) - min(self.a[1], self.b[1])]
 
@@ -159,6 +159,10 @@ class Stem(Loc):
         cv2.rectangle(img, (bb[0], bb[1]), (bb[0] + bb[2],
                                             bb[1] + bb[3]), (0, 255, 0), thickness=2)
 
+        if self.type:
+            cv2.putText(img, self.type.name, (bb[0] + bb[2] + 5, bb[1] + bb[3] // 2),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), thickness=1)
+
     def intersects_rect(self, x, y, w, h):
         s1 = [(x, y), (x + w, y)]
         s2 = [(x, y), (x, y + h)]
@@ -174,7 +178,32 @@ class Stem(Loc):
             or intersects(a, b, s4[0], s4[1])
 
     def __repr__(self):
-        return f"[{self.a} -> {self.b}]"
+        if self.type:
+            return self.type.name
+        else:
+            return f"[{self.a} -> {self.b}]"
+
+    def erode(self, delta, slice, note_aabb):
+        delta = int(self.staffline_height * 1.4)
+        n_x, _, _, n_h = note_aabb
+        x_min, x_max, y_min, y_max = self.bb()
+
+        # note_slice = self.binary[n_y:n_y + n_h, n_x:n_x + n_w]
+
+        x_min -= delta
+        x_max += delta
+        y_min -= delta
+        y_max += delta
+
+        stem_w = x_max - x_min
+        x_start = x_min - n_x
+
+        slice = note_slice[0:n_h, x_start:x_start + stem_w]
+
+        kernel = cv2.getStructuringElement(
+            cv2.MORPH_RECT, (x_max - x_min, 2))
+
+        return cv2.erode(slice, kernel, iterations=2), x_start, stem_w
 
 
 # def dist(a, b):

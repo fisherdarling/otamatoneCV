@@ -34,7 +34,7 @@ class Head(Loc):
         text = ""
 
         if self.type:
-            text = f"{self.type}"
+            text = f"{self.type.name}"
         else:
             text = f"{self.area}"
 
@@ -50,3 +50,9 @@ class Head(Loc):
 
     def __hash__(self):
         return hash(self.centroid)
+
+    def __repr__(self):
+        if self.type:
+            return self.type.name
+        else:
+            return "UNK"

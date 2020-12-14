@@ -7,6 +7,7 @@ from note import Note
 from head import Head, HeadType
 from loc import *
 from lexer import Lexer
+from dot import Dot
 
 
 def nothing(x):
@@ -84,22 +85,35 @@ class OMR:
 
         # print(self.probable_notes)
 
-        # self.display_image(draw_img)
+        self.display_image(draw_img)
         # print("Here")
         cv2.imwrite("probable_notes.png", draw_img)
 
-        lexer = Lexer(self.inverted_music, self.staffs,
-                      self.probable_notes, self.staffspace_height)
+        lexer = Lexer(self.no_staff_lines, self.staffs,
+                      self.probable_notes, self.staffspace_height, self.staffline_height)
         lexer.generate_statistics()
         lexer.classify_heads()
+        lexer.classify_stems()
 
         draw_img = cv2.cvtColor(self.inverted_music, cv2.COLOR_GRAY2BGR)
         for note in self.probable_notes:
             note.draw(draw_img)
 
-        self.display_image(draw_img)
+        # self.display_image(draw_img)
         cv2.imwrite("detected_music.png", draw_img)
         # cv2.imshow("Music", draw_img)
+
+        # draw_img = cv2.cvtColor(self.inverted_music, cv2.COLOR_GRAY2BGR)
+        # for head in self.remaining_heads:
+        #     head.draw(draw_img)
+        # for stem in self.remaining_stems:
+        #     stem.draw(draw_img)
+
+        # self.display_image(draw_img)
+
+        for note in lexer:
+            print(
+                f"[{lexer.current_staff, lexer.note_idx - 1}] {note}")
 
         return None
 
@@ -313,17 +327,20 @@ class OMR:
         cnt, labels, stats, centroids = cv2.connectedComponentsWithStats(
             self.no_staff_lines, 8, cv2.CV_32S)
 
-        remaining_stems = set(self.probable_stems)
-        remaining_heads = set(self.probable_heads)
+        self.remaining_stems = set(self.probable_stems)
+        self.remaining_heads = set(self.probable_heads)
+
+        skipped_cca = []
 
         for i in range(cnt):
             x, y, w, h, a = get_bb(i, stats)
 
             if not self.fits_note_size(w, h):
+                skipped_cca.append(i)
                 continue
 
             chosen_head = None
-            for head in remaining_heads:
+            for head in self.remaining_heads:
                 # Is None if no intersection
                 inter_area = intersection_area(
                     head.bounding_box(), [x, y, w, h])
@@ -331,24 +348,24 @@ class OMR:
                 # if inter_area:
                 #     print(head, inter_area, head.area)
 
-                # If at least 80% of the head intersects with the CCA:
                 if inter_area:
                     chosen_head = head
                     break
 
-            # abort, this CCA is definitely not a note:
+            # abort, this CCA is definitely not a note (but could be a rest):
             if chosen_head is None:
+                skipped_cca.append(i)
                 continue
 
-            remaining_heads.remove(chosen_head)
+            self.remaining_heads.remove(chosen_head)
 
             chosen_stem = None
-            for stem in remaining_stems:
-                # If the x_mid of the stem is near the head's x
+            for stem in self.remaining_stems:
+                # If the x of the stem is near the head's x
                 if abs(stem.x_center() - head.centroid()[0]) < self.staffspace_height:
                     # If the end of the stem is at about the head's midpoint
-                    if abs(stem.y_max() - head.centroid()[1]) < self.staffspace_height / 2 \
-                            or abs(stem.y_max() - head.centroid()[1]) < self.staffspace_height / 2:
+                    if abs(stem.y_max() - head.centroid()[1]) < self.staffspace_height:
+                        # or abs(stem.y_max() - head.centroid()[1]) < self.staffspace_height / 2:
                         chosen_stem = stem
                         break
 
@@ -359,7 +376,7 @@ class OMR:
                 #     break
 
             if chosen_stem is not None:
-                remaining_stems.remove(chosen_stem)
+                self.remaining_stems.remove(chosen_stem)
 
             new_note = Note(head=chosen_head, stem=chosen_stem)
             new_note.c = centroids[i]
@@ -368,10 +385,128 @@ class OMR:
 
             notes.append(new_note)
 
-            # notes.append()
-            # new_note = Note()
+        # Find all missed dots:
+        for idx in skipped_cca:
+            x, y, w, h, a = get_bb(idx, stats)
+            d_c = [x + w / 2, y + w / 2]
 
-        print(f"Remaining Stems Len: {len(remaining_stems)}")
+            # sh = self.staffspace_height + self.staffline_height * 2
+            # return width < sh / 2 and height < sh / 2 and in_tolerance(width / height, 1, .2)
+
+            # print(f"Looking at dot: {d_c}")
+            # print(
+            #     f"{w} < {sh / 2} and {h} < {sh / 2} and {w / h} {in_tolerance(w / h, 1, .2)} -> {self.fits_dot_size(w, h)}")
+
+            if not self.fits_dot_size(w, h):
+                # print("Dot does not fit")
+                continue
+
+            for note in notes:
+                n_c = note.centroid()
+                note_aabb = note.bounding_box()
+
+                # If it's just to the right of the note
+                if abs(d_c[0] - n_c[0]) > w and abs(d_c[0] - n_c[0]) < self.staffspace_height * 2:
+                    # And it's within the y range of the note:
+                    if d_c[1] < note_aabb[1] + note_aabb[3] and d_c[1] > note_aabb[1]:
+                        # It's probably a dot!
+                        dot = Dot(d_c, [x, y, w, h])
+                        note.dot = dot
+
+        # === Beam detection ===
+        for idx in skipped_cca:
+            x, y, w, h, a = get_bb(idx, stats)
+
+            if not self.fits_beam(w, h):
+                continue
+
+            print(f"Potential Beam: {x, y, w, h}")
+
+            connected_heads = set()
+
+            for head in self.remaining_heads:
+                inter_area = intersection_area(
+                    head.bounding_box(), [x, y, w, h])
+
+                # If they intersect at least 50% of the head's area:
+                if inter_area:  # and in_tolerance(inter_area, head.area, 0.5):
+                    connected_heads.add(head)
+
+            if len(connected_heads) < 2:
+                print("Not enough heads")
+                continue
+
+            for head in connected_heads:
+                self.remaining_heads.remove(head)
+
+            connected_stems = set()
+
+            for stem in self.remaining_stems:
+                sx, sy = stem.centroid()
+                if sx > x and sx < x + w \
+                        and sy > y and sy < y + w:
+                    connected_stems.add(stem)
+                # if stem.intersects_rect(x, y, w, h):
+                    # print("Stem intersects")
+                    # connected_stems.add(stem)
+
+            for stem in connected_stems:
+                self.remaining_stems.remove(stem)
+
+            # slice = self.no_staff_lines[y:y+h, x:x+w]
+            # delta = int(self.staffline_height * 1.4)
+
+            # for stem in connected_stems:
+            #     slice, start_x, stem_w = stem.erode(delta, slice, [x, y, w, h])
+
+            # cnt, labels, stats, centroids = cv2.connectedComponentsWithStats(
+            #     slice, 8, cv2.CV_32S)
+
+            beam_notes = []
+
+            print("connected_stems:", connected_stems)
+
+            for head in connected_heads:
+                min_stem = None
+                # min_dist = 100000.0
+                for stem in connected_stems:
+                    # d = dist(head.centroid(), stem.centroid())
+                    # print(head.centroid(), stem, min_dist, d)
+                    print(head.centroid(), stem.centroid())
+
+                    if abs(head.centroid()[0] - stem.centroid()[0]) < self.staffspace_height:
+                        min_stem = stem
+                        break
+
+                if min_stem:
+                    connected_stems.remove(stem)
+                else:
+                    print(f"head has no stem: {head} {head.centroid()}")
+                    continue
+
+                print("Creating note")
+
+                head_aabb = head.bounding_box()
+                x_min, x_max, y_min, y_max = stem.bb()
+
+                print(f"{head_aabb=}")
+                print(f"{stem.bb()}")
+
+                note_aabb = [head_aabb[0], y_min,
+                             x_max - head_aabb[0] + self.staffspace_height, (head_aabb[1] + head_aabb[3]) - y_min]
+                note_centroid = [note_aabb[0] + note_aabb[2] //
+                                 2, note_aabb[1] + note_aabb[3] // 2]
+
+                print(f"{note_aabb=}")
+
+                note = Note(None, head, stem, centroid=note_centroid,
+                            bounding_box=note_aabb)
+                note.is_beam = True
+                notes.append(note)
+
+                print(f"Found beam note: {note}, {note.bounding_box()}")
+
+        print(f"Remaining Stems Len: {len(self.remaining_stems)}")
         self.probable_notes = notes
 
     def remove_stems(self):
@@ -399,6 +534,11 @@ class OMR:
 
         self.no_stems = removed
 
+    def fits_beam(self, width, height):
+        sh = self.staffspace_height + self.staffline_height * 2
+
+        return width > sh * 3 and height > sh * 3 and height < self.staffspace_height * 10
+
     def fits_note_head(self, width, height):
         sh = self.staffspace_height + self.staffline_height * 2
 
@@ -410,6 +550,20 @@ class OMR:
 
         return width < sh * 3 and width > sh / 1.2 \
             and height < sh * 5 and height > sh / 1.5
+
+    def fits_dot_size(self, width, height):
+        sh = self.staffspace_height + self.staffline_height * 2
+
+        width_fits = width < (sh / 2)
+        height_fits = height < (sh / 2)
+
+        # Should have an aspect ratio of around 1
+        aspect_fits = in_tolerance(width / height, 1, .2)
+
+        # print(
+        #     f"{sh / 2=} {width=} {height=} {width_fits=} {height_fits=} {aspect_fits=}")
+
+        return width_fits and height_fits and aspect_fits
 
     def draw_stems(self, img, lines):
         for stem in lines:
@@ -431,6 +585,10 @@ def get_bb(idx, stats):
     a = stats[idx, cv2.CC_STAT_AREA]
 
     return x, y, w, h, a
+
+
+def dist(a, b):
+    return np.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
 
 
 if __name__ == "__main__":
