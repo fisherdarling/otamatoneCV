@@ -27,20 +27,24 @@ class OMR:
         self.otsu_filter()
         self.extract_staff_metrics()
         self.create_inverted()
+
+        print(self.staffspace_height, self.staffline_height)
         self.find_staff_lines()
         print(self.staffs)
+
+        print(self.staffs[0].lines)
 
         # cv2.imshow("Music", self.inverted_music)
         # cv2.waitKey()
 
         self.remove_staff_lines()
-
+        self.clean_noise()
         # self.display_image(self.no_staff_lines)
-        # cv2.imshow("Music", self.no_staff_lines)
-        # cv2.waitKey()
+
+        cv2.imwrite("no_staff_lines.png", self.no_staff_lines)
 
         self.canny = cv2.Canny(self.no_staff_lines, 0, 1)
-
+        # self.display_image(self.canny)
         # kernel = cv2.getStructuringElement(
         #     cv2.MORPH_RECT, (self.staffline_height * 2, self.staffline_height))
         # self.canny = cv2.dilate(self.canny, kernel)
@@ -129,6 +133,16 @@ class OMR:
     #     cv2.rectangle(img, (bb[0], bb[1]), (bb[0] + bb[2],
     #                                         bb[1] + bb[3]), color, thickness=2)
 
+    def clean_noise(self):
+        kernel = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE, (self.staffline_height, self.staffline_height))
+
+        opening = cv2.morphologyEx(
+            self.no_staff_lines, cv2.MORPH_CLOSE, kernel)
+        closing = cv2.morphologyEx(opening, cv2.MORPH_OPEN, kernel)
+
+        self.no_staff_lines = closing
+
     def otsu_filter(self):
         _, img = cv2.threshold(
             self.gray, 0, 1, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -146,6 +160,9 @@ class OMR:
         highest = np.max(row_sums)
         avg = int(np.average(np.where(row_sums > 0)))
 
+        print(highest)
+        print(avg)
+
         staffs = []
         last_staff_line = None
         current_line = []
@@ -153,7 +170,7 @@ class OMR:
 
         for row, line in enumerate(row_sums):
             # We are at a staff line
-            if line > avg:
+            if in_tolerance(line, highest, 0.2):
                 current_line.append(row)
 
             # We are not at a staff line,
@@ -166,7 +183,9 @@ class OMR:
                 if last_staff_line is None or abs(next_center - last_staff_line.center()) < 2 * self.staffspace_height:
                     current_staff.add_line(next_staffline)
                 else:
-                    staffs.append(current_staff)
+                    if current_staff.len() == 5:
+                        staffs.append(current_staff)
+
                     current_staff = Staff()
                     current_staff.add_line(next_staffline)
 
@@ -181,7 +200,7 @@ class OMR:
     def remove_staff_lines(self):
         removed = self.inverted_music.copy()
         kernel = cv2.getStructuringElement(
-            cv2.MORPH_RECT, (1, int(self.staffline_height * 1.5)))
+            cv2.MORPH_RECT, (1, round(self.staffline_height * 3)))
 
         for staff in self.staffs:
             for line in staff.lines:
@@ -233,6 +252,9 @@ class OMR:
                 lines = list(filter(lambda stem: stem.y_max() <
                                     y_top and stem.y_min() > y_bot, self.probable_stems))
 
+                if len(lines) == 0:
+                    break
+
                 new_stems.extend(Stem.combine_similar_lines(
                     lines, self.staffspace_height))
 
@@ -250,7 +272,7 @@ class OMR:
 
             total += (self.staffs[i + 1].center() - self.staffs[i].center())
 
-        return total / (len(self.staffs) - 1)
+        return total / len(self.staffs)
 
     def detect_note_heads(self):
         # return width < sh * 2 and width > sh / 5 \
@@ -318,7 +340,7 @@ class OMR:
         idxs = reversed(to_remove)
 
         for idx in idxs:
-            self.probable_heads.pop(idx.pop())
+            self.probable_heads.pop(idx)
 
     def determine_notes(self):
         assert len(self.note_head_cnts)
@@ -364,7 +386,8 @@ class OMR:
                 # If the x of the stem is near the head's x
                 if abs(stem.x_center() - head.centroid()[0]) < self.staffspace_height:
                     # If the end of the stem is at about the head's midpoint
-                    if abs(stem.y_max() - head.centroid()[1]) < self.staffspace_height:
+                    if abs(stem.y_max() - head.centroid()[1]) < self.staffspace_height \
+                            or abs(stem.y_min() - head.centroid()[1]) < self.staffspace_height:
                         # or abs(stem.y_max() - head.centroid()[1]) < self.staffspace_height / 2:
                         chosen_stem = stem
                         break
@@ -420,7 +443,7 @@ class OMR:
             if not self.fits_beam(w, h):
                 continue
 
-            print(f"Potential Beam: {x, y, w, h}")
+            # print(f"Potential Beam: {x, y, w, h}")
 
             connected_heads = set()
 
@@ -433,7 +456,7 @@ class OMR:
                     connected_heads.add(head)
 
             if len(connected_heads) < 2:
-                print("Not enough heads")
+                # print("Not enough heads")
                 continue
 
             for head in connected_heads:
@@ -464,7 +487,7 @@ class OMR:
 
             beam_notes = []
 
-            print("connected_stems:", connected_stems)
+            # print("connected_stems:", connected_stems)
 
             for head in connected_heads:
                 min_stem = None
@@ -514,7 +537,7 @@ class OMR:
 
         height, width = removed.shape
         # print(f"width: {width}, height: {height}")
-        delta = int(self.staffline_height * 1.4)
+        delta = int(self.staffline_height * 1.5)
 
         for stem in self.probable_stems:
             # print(stem, stem.bb)
@@ -530,7 +553,7 @@ class OMR:
 
             eroded = cv2.erode(removed[y_min:y_max, x_min:x_max],
                                kernel, iterations=2)
-            removed[y_min:y_max, x_min:x_max] = eroded
+            removed[y_min:y_max, x_min:x_max] = 0
 
         self.no_stems = removed
 

@@ -178,7 +178,7 @@ class Lexer:
                 else:
                     note.stem.type = StemType.SIXTEENTH_FLAG
             else:
-                print("Unknown stem count:", count)
+                # print("Unknown stem count:", count)
                 note.stem.type = StemType.NORMAL
 
         # self.no_stems = removed
@@ -196,7 +196,7 @@ class Lexer:
 
             total += (self.staffs[i + 1].center() - self.staffs[i].center())
 
-        return total / (len(self.staffs) - 1)
+        return total / len(self.staffs)
 
     def populate_notes(self):
         staff = self.staffs[self.current_staff]
