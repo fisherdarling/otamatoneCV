@@ -5,6 +5,8 @@ import random
 from scipy import stats
 import numpy as np
 
+import matplotlib.pyplot as plt
+
 
 @total_ordering
 class StaffLine(Loc):
@@ -113,6 +115,11 @@ class Staff:
             black_runs, white_runs = Staff.extract_runs(frame, col)
             black_modes += list(stats.mode(black_runs)[0])
             white_modes += list(stats.mode(white_runs)[0])
+
+        # plt.hist(black_modes)
+        # plt.hist(white_modes)
+        # plt.show()
+        # plt.waitforuserinput()
 
         staffline_height = int(np.median(black_modes))
         staffspace_height = int(np.median(white_modes))

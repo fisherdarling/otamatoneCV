@@ -10,6 +10,9 @@ from lexer import Lexer
 from dot import Dot
 
 
+import matplotlib.pyplot as plt
+
+
 def nothing(x):
     pass
 
@@ -97,7 +100,7 @@ class OMR:
                       self.probable_notes, self.staffspace_height, self.staffline_height)
         lexer.generate_statistics()
         lexer.classify_heads()
-        lexer.classify_stems()
+        # lexer.classify_stems()
 
         draw_img = cv2.cvtColor(self.inverted_music, cv2.COLOR_GRAY2BGR)
         for note in self.probable_notes:
@@ -157,6 +160,11 @@ class OMR:
 
     def find_staff_lines(self):
         row_sums = np.sum(self.inverted_music, axis=1) / 255
+
+        # plt.barh(np.arange(row_sums.shape[0]), row_sums)
+        # plt.show()
+        # plt.waitforuserinput()
+
         highest = np.max(row_sums)
         avg = int(np.average(np.where(row_sums > 0)))
 
@@ -269,7 +277,6 @@ class OMR:
 
         for i in range(len(self.staffs) - 1):
             # print(self.staffs[i])
-
             total += (self.staffs[i + 1].center() - self.staffs[i].center())
 
         return total / len(self.staffs)
@@ -615,5 +622,5 @@ def dist(a, b):
 
 
 if __name__ == "__main__":
-    omr = OMR("ode-to-joy-cropped.png")
+    omr = OMR("canon-in-d.png")
     omr.extract_music()
