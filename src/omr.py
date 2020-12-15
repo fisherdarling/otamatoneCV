@@ -40,14 +40,16 @@ class OMR:
         # cv2.imshow("Music", self.inverted_music)
         # cv2.waitKey()
 
+        self.display_image(self.inverted_music)
+
         self.remove_staff_lines()
         self.clean_noise()
-        # self.display_image(self.no_staff_lines)
+        self.display_image(self.no_staff_lines)
 
         cv2.imwrite("no_staff_lines.png", self.no_staff_lines)
 
         self.canny = cv2.Canny(self.no_staff_lines, 0, 1)
-        # self.display_image(self.canny)
+        self.display_image(self.canny)
         # kernel = cv2.getStructuringElement(
         #     cv2.MORPH_RECT, (self.staffline_height * 2, self.staffline_height))
         # self.canny = cv2.dilate(self.canny, kernel)
@@ -68,19 +70,22 @@ class OMR:
 
         # print(self.probable_stems)
 
-        # draw_img = cv2.cvtColor(self.inverted_music, cv2.COLOR_GRAY2BGR)
-        # self.draw_stems(draw_img, self.probable_stems)
-        # self.display_image(draw_img)
+        draw_img = cv2.cvtColor(self.inverted_music, cv2.COLOR_GRAY2BGR)
+        self.draw_stems(draw_img, self.probable_stems)
+        self.display_image(draw_img)
 
         self.combine_probable_stems()
 
         draw_img = cv2.cvtColor(self.inverted_music, cv2.COLOR_GRAY2BGR)
         self.draw_stems(draw_img, self.probable_stems)
-        # self.display_image(draw_img)
+        self.display_image(draw_img)
 
         cv2.imwrite("detected_stems.png", draw_img)
 
         self.detect_note_heads()
+
+        self.display_image(self.no_stems)
+
         self.determine_notes()
 
         draw_img = cv2.cvtColor(self.inverted_music, cv2.COLOR_GRAY2BGR)
@@ -92,7 +97,7 @@ class OMR:
 
         # print(self.probable_notes)
 
-        # self.display_image(draw_img)
+        self.display_image(draw_img)
         # print("Here")
         cv2.imwrite("probable_notes.png", draw_img)
 
@@ -100,13 +105,15 @@ class OMR:
                       self.probable_notes, self.staffspace_height, self.staffline_height)
         lexer.generate_statistics()
         lexer.classify_heads()
-        # lexer.classify_stems()
+        lexer.classify_stems()
 
         draw_img = cv2.cvtColor(self.inverted_music, cv2.COLOR_GRAY2BGR)
         for note in self.probable_notes:
             note.draw(draw_img)
 
         self.display_image(draw_img)
+        self.display_image(draw_img)
+
         cv2.imwrite("detected_music.png", draw_img)
         # cv2.imshow("Music", draw_img)
 
@@ -115,8 +122,6 @@ class OMR:
         #     head.draw(draw_img)
         # for stem in self.remaining_stems:
         #     stem.draw(draw_img)
-
-        # self.display_image(draw_img)
 
         for note in lexer:
             print(
@@ -622,5 +627,5 @@ def dist(a, b):
 
 
 if __name__ == "__main__":
-    omr = OMR("canon-in-d.png")
+    omr = OMR("ode-to-joy-cropped.png")
     omr.extract_music()
